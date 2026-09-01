@@ -1,87 +1,29 @@
 import express from 'express'
 import cors from 'cors'
-import pg from 'pg'
+import 'dotenv/config'
+import todoRouter from './routes/todoRouter.js'
 
-const port = 3001
-const { Pool } = pg
-
+const port = process.env.PORT || 3001
 const app = express()
 
 app.use(cors())
 app.use(express.json())
 
-const openDb = () => {
-  const pool = new Pool({
-    user: 'postgres',
-    host: 'localhost',
-    database: 'todo',
-    password: '',
-    port: 5432
-  })
+app.use('/tasks', todoRouter)
 
-  return pool
-}
+app.use((err, req, res, next) => {
+  const statusCode = err.status || 500
 
-app.get('/tasks', (req, res) => {
-  const pool = openDb()
-
-  pool.query('SELECT * FROM task', (err, result) => {
-    if (err) {
-      console.error(err.message)
-      return res.status(500).json({ error: 'Internal server error' })
-    }
-
-    res.status(200).json(result.rows)
-  })
-})
-
-app.post('/tasks', (req, res) => {
-  const pool = openDb()
-  const { task } = req.body
-
-  if (!task) {
-    return res.status(400).json({ error: 'Task is required' })
+  if (statusCode === 500) {
+    console.error(err.message)
   }
 
-  pool.query(
-    'insert into task (description) values ($1) returning *',
-    [task.description],
-    (err, result) => {
-      if (err) {
-        console.error(err.message)
-        return res.status(500).json({ error: 'Internal server error' })
-      }
-
-      res.status(201).json({
-        id: result.rows[0].id,
-        description: task.description
-      })
+  res.status(statusCode).json({
+    error: {
+      message: err.message,
+      status: statusCode
     }
-  )
-})
-
-app.delete('/tasks/:id', (req, res) => {
-  const pool = openDb()
-  const { id } = req.params
-
-  console.log(`Deleting task with id: ${id}`)
-
-  pool.query(
-    'delete from task WHERE id = $1',
-    [id],
-    (err, result) => {
-      if (err) {
-        console.error(err.message)
-        return res.status(500).json({ error: 'Internal server error' })
-      }
-
-      if (result.rowCount === 0) {
-        return res.status(404).json({ error: 'Task not found' })
-      }
-
-      return res.status(200).json({ id: id })
-    }
-  )
+  })
 })
 
 app.listen(port, () => {
